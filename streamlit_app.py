@@ -3,13 +3,16 @@ import requests
 import xml.etree.ElementTree as ET
 import json
 from urllib.parse import urlparse
+from bs4 import BeautifulSoup
+import time
 
 st.set_page_config(page_title="Sitemap Parser for ML", layout="centered")
-st.title("🔍 Sitemap Crawler & Exporter")
+st.title("🔍 Sitemap Crawler & Content Exporter")
 
-sitemap_url = st.text_input("Enter a sitemap.xml")
+sitemap_url = st.text_input("Enter a sitemap.xml URL:", "https://docs.affinda.com/sitemap.xml")
+max_pages = st.slider("Max pages to fetch for content extraction", 1, 300, 50)
 
-if st.button("Parse Sitemap"):
+if st.button("Parse and Fetch Content"):
     try:
         response = requests.get(sitemap_url)
         response.raise_for_status()
@@ -19,28 +22,43 @@ if st.button("Parse Sitemap"):
         namespace = {'ns': root.tag.split('}')[0].strip('{')}  # Extract the XML namespace
 
         urls = [elem.text for elem in root.findall('.//ns:loc', namespaces=namespace)]
+        urls = urls[:max_pages]  # limit to max_pages
 
-        st.success(f"✅ Found {len(urls)} URLs")
-        st.write(urls)
+        st.success(f"✅ Found {len(urls)} URLs (showing up to {max_pages})")
 
-        # Extract structured data
         parsed_data = []
-        for url in urls:
-            parts = urlparse(url)
-            parsed_data.append({
-                "full_url": url,
-                "domain": parts.netloc,
-                "path": parts.path,
-                "query": parts.query,
-            })
+        progress = st.progress(0)
 
-        # Show JSON preview
-        st.subheader("📦 Export Preview (JSON)")
-        st.json(parsed_data[:10])
+        for idx, url in enumerate(urls):
+            try:
+                page = requests.get(url, timeout=10)
+                soup = BeautifulSoup(page.content, 'html.parser')
 
-        # Download link
+                title = soup.title.string.strip() if soup.title else ""
+                body_text = ' '.join(p.get_text(strip=True) for p in soup.find_all('p'))
+
+                parsed_data.append({
+                    "full_url": url,
+                    "title": title,
+                    "text": body_text
+                })
+
+            except Exception as e:
+                parsed_data.append({
+                    "full_url": url,
+                    "error": str(e)
+                })
+
+            progress.progress((idx + 1) / len(urls))
+            time.sleep(0.5)  # be polite with delay
+
+        # Preview
+        st.subheader("📦 Export Preview (First 3 Pages)")
+        st.json(parsed_data[:3])
+
+        # Download
         json_file = json.dumps(parsed_data, indent=2)
-        st.download_button("📥 Download JSON", json_file, file_name="sitemap_data.json", mime="application/json")
+        st.download_button("📥 Download JSON", json_file, file_name="sitemap_page_content.json", mime="application/json")
 
     except requests.exceptions.RequestException as e:
         st.error(f"Error fetching sitemap: {e}")
