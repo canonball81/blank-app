@@ -9,8 +9,7 @@ import time
 st.set_page_config(page_title="Sitemap Parser for ML", layout="centered")
 st.title("🔍 Sitemap Crawler & Content Exporter")
 
-sitemap_url = st.text_input("Enter a sitemap.xml URL:", "https://docs.affinda.com/sitemap.xml")
-max_pages = st.slider("Max pages to fetch for content extraction", 1, 300, 50)
+sitemap_url = st.text_input("Enter a sitemap.xml URL:")
 
 if st.button("Parse and Fetch Content"):
     try:
@@ -22,9 +21,8 @@ if st.button("Parse and Fetch Content"):
         namespace = {'ns': root.tag.split('}')[0].strip('{')}  # Extract the XML namespace
 
         urls = [elem.text for elem in root.findall('.//ns:loc', namespaces=namespace)]
-        urls = urls[:max_pages]  # limit to max_pages
 
-        st.success(f"✅ Found {len(urls)} URLs (showing up to {max_pages})")
+        st.success(f"✅ Found {len(urls)} URLs")
 
         parsed_data = []
         progress = st.progress(0)
